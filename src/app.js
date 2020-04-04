@@ -40,7 +40,7 @@ app.get('/', (req, res) => {
   res.status(200).send('Hello, world!');
 });
 
-app.use('/bookmarks', bookmarksRouter);
+app.use('/api/bookmarks', bookmarksRouter);
 
 
 // error handling

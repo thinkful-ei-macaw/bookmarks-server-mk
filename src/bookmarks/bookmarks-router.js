@@ -1,5 +1,6 @@
 const express = require('express');
 const xss = require('xss');
+const path = require('path');
 const { isWebUri } = require('valid-url');
 
 const bookmarksRouter = express.Router();
@@ -9,7 +10,7 @@ const BookmarksService = require('./bookmarks-service');
 bookmarksRouter.use(express.json());
 
 // sanitizing person data before it goes out
-const sanitizeBookmark = bookmark => {
+const serializeBookmark = bookmark => {
   return {
     id: bookmark.id,
     url: bookmark.url,
@@ -21,10 +22,10 @@ const sanitizeBookmark = bookmark => {
 
 
 // bookmark validation
-const validateBookmark = (requestBody, required=true) => {
+const validateBookmark = (requestBody, inserting=true) => {
   const { url, rating } = requestBody;
 
-  if (required === true) {
+  if (inserting === true) {
     const requiredFields = ['title', 'url', 'rating'];
     for (let field of requiredFields) {
       if (!requestBody[field]) {
@@ -50,6 +51,11 @@ const validateBookmark = (requestBody, required=true) => {
     if (requestBody[field]) bookmark[field] = requestBody[field];
   });
   
+  // if no fields provided
+  if (inserting === false && Object.keys(bookmark).length === 0) {
+    return { error: 'Must provide at least one of title, url, rating or description' };
+  }
+
   return bookmark;
 };
 
@@ -69,8 +75,8 @@ bookmarksRouter.post('/', (req, res, next) => {
     .then(bookmark => {
       return res
         .status(201)
-        .location(`/bookmarks/${bookmark.id}`)
-        .json(sanitizeBookmark(bookmark));
+        .location(path.posix.join(req.originalUrl, '/' + bookmark.id))
+        .json(serializeBookmark(bookmark));
     })
     .catch(next);
   
@@ -84,7 +90,7 @@ bookmarksRouter.get('/', (req, res, next) => {
     .then(bookmarks => {
       return res
         .status(200)
-        .json(bookmarks.map(sanitizeBookmark));
+        .json(bookmarks.map(serializeBookmark));
     })
     .catch(next);
 });
@@ -103,7 +109,41 @@ bookmarksRouter.get('/:id', (req, res, next) => {
 
       return res
         .status(200)
-        .json(sanitizeBookmark(bookmark));
+        .json(serializeBookmark(bookmark));
+
+    })
+    .catch(next);
+});
+
+
+// PATCH requests (UPDATE)
+bookmarksRouter.patch('/:id', (req, res, next) => {
+  const { id } = req.params;
+  const db = req.app.get('db');
+
+  // check that bookmark with matching id exists
+  BookmarksService.getBookmarkByID(db, id)
+    .then(bookmark => {
+      if (!bookmark) {
+        return res
+          .status(404)
+          .send('Bookmark Not Found');
+      }
+
+      // get fields to update
+      const bookmarkToUpdate = validateBookmark(req.body, false);
+      if (bookmarkToUpdate.error) {
+        return res
+          .status(400)
+          .send(bookmarkToUpdate.error);
+      }
+
+      BookmarksService.updateBookmark(db, id, bookmarkToUpdate)
+        .then(() => {
+          return res
+            .status(204)
+            .end();
+        });
 
     })
     .catch(next);
