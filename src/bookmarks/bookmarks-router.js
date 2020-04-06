@@ -35,7 +35,8 @@ const validateBookmark = (requestBody, inserting=true) => {
   }
 
   // check that rating is a number
-  if (rating && !Number.isInteger(rating) || rating < 1 || rating > 5 ) {
+  const r = parseInt(rating);
+  if (rating && !Number.isInteger(r) || r < 1 || r > 5 ) {
     return { error: 'Rating must be a number between 1 and 5' };
   }
 
